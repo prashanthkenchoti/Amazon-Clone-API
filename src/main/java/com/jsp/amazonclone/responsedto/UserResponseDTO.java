@@ -17,5 +17,7 @@ public class UserResponseDTO {
 	private String userName;
 	private String email;
 	private UserRole userRole;
+	private boolean isEmailVerified;
+	private boolean isDeleted;
 
 }
