@@ -26,7 +26,7 @@ public class AuthController {
 	}
 
 	@PostMapping("/varify-otp")
-	public ResponseEntity<String> verifyOTP(OtpModel otp)
+	public ResponseEntity<String> verifyOTP( @RequestBody OtpModel otp)
 	{
 		return authService.verifyOTP(otp);
 	}
