@@ -1,56 +1,130 @@
 package com.jsp.amazonclone.serviceImpl;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.neo4j.Neo4jProperties.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.jsp.amazonclone.cache.CacheStored;
+import com.jsp.amazonclone.entity.AccessToken;
 import com.jsp.amazonclone.entity.Customer;
+import com.jsp.amazonclone.entity.RefreshToken;
 import com.jsp.amazonclone.entity.Seller;
 import com.jsp.amazonclone.entity.User;
+import com.jsp.amazonclone.reposotory.AccessTokenRepository;
 import com.jsp.amazonclone.reposotory.CustomerRepository;
+import com.jsp.amazonclone.reposotory.RefreshTokenRepository;
 import com.jsp.amazonclone.reposotory.SellerRepository;
 import com.jsp.amazonclone.reposotory.UserRepository;
+import com.jsp.amazonclone.requestdto.AuthRequestDTO;
 import com.jsp.amazonclone.requestdto.OtpModel;
 import com.jsp.amazonclone.requestdto.UserRequestDTO;
+import com.jsp.amazonclone.responsedto.AuthResponseDTO;
 import com.jsp.amazonclone.responsedto.UserResponseDTO;
+import com.jsp.amazonclone.security.JwtService;
 import com.jsp.amazonclone.service.AuthService;
+import com.jsp.amazonclone.utility.CookieManager;
 import com.jsp.amazonclone.utility.MessageStructure;
 import com.jsp.amazonclone.utility.ResponseStructure;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
 public class AuthServiceImpl implements AuthService {
-	@Autowired
+	
 	PasswordEncoder passwordEncoder;
-	@Autowired
+	
 	private ResponseStructure<UserResponseDTO> responseStructure;
-	@Autowired
+	
+	private ResponseStructure<AuthResponseDTO> authStructure;
+	
 	private UserRepository userRepo;
-	@Autowired
+	
 	private CustomerRepository customerRepo;
-	@Autowired
+	
 	private SellerRepository sellerRepo;
-	@Autowired
+	
 	private CacheStored<String> otpCacheStore;
-	@Autowired
+	
 	private CacheStored<User> userCacheStore; 
 	
-	@Autowired
-	private JavaMailSender javaMailSender;
 
+	private JavaMailSender javaMailSender;
+	
+	
+	private AuthenticationManager authenticationManager;
+	
+	private JwtService jwtService;
+	
+	
+	private CookieManager cookieManager;
+	
+	private AccessTokenRepository accessTokenRepository;
+	
+	private RefreshTokenRepository refreshTokenRepository;
+	
+	@Value("${myapp.access.expiry}")
+	private int accessExpiryInSeconds;
+	
+	@Value("${myapp.refresh.expiry}")
+	private int refreshExpiryInSeconds;
+	
+	
+	
+	// GENERATING CONSTRUCTOR FOR FIELDS
+
+	public AuthServiceImpl(PasswordEncoder passwordEncoder, 
+			ResponseStructure<UserResponseDTO> responseStructure,
+			ResponseStructure<AuthResponseDTO> authStructure,
+			UserRepository userRepo,
+			CustomerRepository customerRepo,
+			SellerRepository sellerRepo,
+			CacheStored<String> otpCacheStore,
+			CacheStored<User> userCacheStore,
+			JavaMailSender javaMailSender,
+			AuthenticationManager authenticationManager,
+			CookieManager cookieManager,
+			JwtService jwtService,
+			AccessTokenRepository accessTokenRepository,
+			RefreshTokenRepository refreshTokenRepository) {
+		super();
+		this.passwordEncoder = passwordEncoder;
+		this.responseStructure = responseStructure;
+		this.authStructure=authStructure;
+		this.userRepo = userRepo;
+		this.customerRepo = customerRepo;
+		this.sellerRepo = sellerRepo;
+		this.otpCacheStore = otpCacheStore;
+		this.userCacheStore = userCacheStore;
+		this.javaMailSender = javaMailSender;
+		this.authenticationManager = authenticationManager;
+		this.cookieManager = cookieManager;
+		this.jwtService=jwtService;
+		this.accessTokenRepository=accessTokenRepository;
+		this.refreshTokenRepository=refreshTokenRepository;
+	}
+
+	//METHOD TO CONVERT USERREQUASTDTO OBJECT TO APPROPRIATE USERS BASED ON USERROLE 
+	
 	@SuppressWarnings("unchecked")
 	private <T extends User> T mapToUserRequest(UserRequestDTO request) {
 		User user = null;
@@ -69,31 +143,36 @@ public class AuthServiceImpl implements AuthService {
 		return (T) user;
 	}
 
+	//	METHOD TO CONVERT USER OBJECT INTO USERRESPONSEDTO OBJECT 
+	
 	private UserResponseDTO mapToUserResponseDTO(User users) {
 		return UserResponseDTO.builder().userId(users.getUserId()).userName(users.getUserName()).email(users.getEmail())
 				.userRole(users.getUserRole()).build();
 	}
 
-	//math.ramdom
+	// METHOD TO GENERATE OTP
+	
 	private String generateOTP() {
-		//math.ramdom
+		
 		return String.valueOf(new Random().nextInt(100000,999999));
 	}
+	
+	// METHOD TO SAVE USER
+	
+//	private User saveUser(User user) {
+//		switch (user.getUserRole()) {
+//		case CUSTOMER -> {
+//			user = customerRepo.save((Customer) user);
+//		}
+//		case SELLER -> {
+//			user = sellerRepo.save((Seller) user);
+//		}
+//		default -> throw new RuntimeException();
+//		}
+//		return user;
+//	}
 
-	private User saveUser(User user) {
-		switch (user.getUserRole()) {
-		case CUSTOMER -> {
-			user = customerRepo.save((Customer) user);
-		}
-		case SELLER -> {
-			user = sellerRepo.save((Seller) user);
-		}
-		default -> throw new RuntimeException();
-		}
-		return user;
-	}
-
-
+	//METHOD TO REGISTER USER 
 
 	@Override
 	public ResponseEntity<ResponseStructure<UserResponseDTO>> register(UserRequestDTO request) {
@@ -119,7 +198,8 @@ public class AuthServiceImpl implements AuthService {
 				.setData(mapToUserResponseDTO(user)),HttpStatus.ACCEPTED);
 	}
 
-
+	//METHOD TO VERIFY OTP
+	
 	@Override
 	public ResponseEntity<String> verifyOTP(OtpModel otpModel) {
 		User user = userCacheStore.get(otpModel.getEmail());
@@ -131,9 +211,18 @@ public class AuthServiceImpl implements AuthService {
 		else {
 		user.setEmailVerified(true);
 		userRepo.save(user);
+		try {
+			sendWelComeMil( user);
+		} catch (MessagingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		}
 		return new ResponseEntity<String>("registrarion Sucessfull",HttpStatus.CREATED);
 	}
+	
+	// METHOD TO SEND OTP TO USER EMAILID
 	
 	private void sendotpToMail(User user,String otp) throws MessagingException
 	{
@@ -156,7 +245,36 @@ public class AuthServiceImpl implements AuthService {
 		
 	}
 	
-	@Async// annotation used to make method asynchronous it means to send send eah email simultaneously
+	//METHOD TO SEND WELCOME MAIL ONCE THE REGISTRATION IS SUCCESSFUL
+	
+	private void sendWelComeMil(User user) throws MessagingException
+	{
+		sendMail( MessageStructure.builder()
+		.to(user.getEmail())
+		.Subject("Successfully Registered with Amazon")
+		.sentDate(new Date())
+		.text(
+				" WelCome to Amazon " +user.getUserName()
+				+" Congratulations on successfully registering with Amazon!<br>"
+				+ " We're thrilled to have you join our community of savvy shoppers."
+				+" At Amazon, we're dedicated to providing you with an exceptional shopping experience."
+				+ " Whether you're searching for the latest gadgets, "
+				+ "trendy fashion, or everyday essentials, we've got you covered. "
+				+ " With a vast selection of products, "
+				+ "exclusive deals, and seamless shopping features,"
+				+ " we're here to make your online shopping journey delightful and convenient.<br>"
+				+"<br> <br><br>"
+				+" with best Regards<br>"
+				+"Amazon"
+				
+				).build());
+		
+		
+	}
+	
+	// METHOD TO SEND EMAIL
+	
+	@Async// annotation used to make method asynchronous it means to send send multiple email simultaneously
 	private void sendMail(MessageStructure message) throws MessagingException
 	{
 		MimeMessage mimeMessage= javaMailSender.createMimeMessage();
@@ -167,4 +285,66 @@ public class AuthServiceImpl implements AuthService {
 		helper.setText(message.getText(),true);// true is used to enable html documents in the text
 		javaMailSender.send(mimeMessage);
 	}
+
+	@Override
+	public ResponseEntity<ResponseStructure<AuthResponseDTO>> login(AuthRequestDTO authRequestDTO,HttpServletResponse response) {
+		
+		String userName= authRequestDTO.getEmail().split("@")[0];
+		UsernamePasswordAuthenticationToken token= new UsernamePasswordAuthenticationToken(userName,authRequestDTO.getPassword());
+		org.springframework.security.core.Authentication authentication=authenticationManager.authenticate(token);
+		if(!authentication.isAuthenticated())
+		{
+			throw new UsernameNotFoundException("failed authenticate the user");
+		}
+		else
+		{
+			//generating the cookies and returning to the client
+			
+		return	 userRepo.findByUserName(userName).map(user ->{
+				grantAccess(response, user);
+			return 	ResponseEntity.ok(authStructure.setStatusCode(HttpStatus.OK.value())
+						.setData(AuthResponseDTO.builder()
+								.userId(user.getUserId())
+								.userName(userName)
+								.role(user.getUserName())
+								.isAuthenticated(true)
+								.accessExpiration(LocalDateTime.now().plusSeconds(accessExpiryInSeconds))
+								.refreshExpiration(LocalDateTime.now().plusSeconds(refreshExpiryInSeconds))
+								.build()));
+						
+			}).get();
+			
+		}
+	}
+	
+	private void grantAccess(HttpServletResponse response, User user)
+	{
+		//generating access and refress tokens
+		
+		String accessToken=jwtService.generateAccessToken(user.getUserName());
+		String refreshToken= jwtService.generateAccessToken(user.getUserName());
+		
+		//adding access and refresh tokens cookies to the response
+		response.addCookie(cookieManager.configure(new Cookie("at", accessToken), accessExpiryInSeconds));
+		
+		response.addCookie(cookieManager.configure(new Cookie("at", refreshToken), refreshExpiryInSeconds));
+		
+		//saving the access and refresh cookie in to the database
+		
+		accessTokenRepository.save(AccessToken.builder()
+				.token(accessToken)
+				.isBlocked(false)
+				.expiration(LocalDateTime.now().plusSeconds(accessExpiryInSeconds))
+				.build());
+		
+		refreshTokenRepository.save(RefreshToken.builder()
+				.token(refreshToken)
+				.isBlocked(false)
+				.expiration(LocalDateTime.now().plusSeconds(refreshExpiryInSeconds))
+				.build());
+		
+	}
+	
+	
+	
 }
