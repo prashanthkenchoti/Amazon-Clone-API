@@ -2,6 +2,7 @@ package com.jsp.amazonclone.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,7 @@ import com.jsp.amazonclone.responsedto.UserResponseDTO;
 import com.jsp.amazonclone.service.AuthService;
 import com.jsp.amazonclone.utility.ResponseStructure;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
@@ -40,5 +42,11 @@ public class AuthController {
 	public ResponseEntity<ResponseStructure<AuthResponseDTO>> login(@RequestBody AuthRequestDTO authRequestDTO, HttpServletResponse response)
 	{
 		return authService.login(authRequestDTO, response);
+	}
+	
+	@PostMapping("/logout")
+	public ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(@CookieValue(name="at" ,required = false) String accessToken,@CookieValue(name="rt" ,required = false) String refreshToken,   HttpServletResponse response)
+	{
+		return authService.logout(accessToken,refreshToken,response);
 	}
 }

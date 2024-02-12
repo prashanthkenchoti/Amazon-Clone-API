@@ -1,13 +1,10 @@
 package com.jsp.amazonclone.serviceImpl;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Random;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.neo4j.Neo4jProperties.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -25,6 +22,7 @@ import com.jsp.amazonclone.entity.Customer;
 import com.jsp.amazonclone.entity.RefreshToken;
 import com.jsp.amazonclone.entity.Seller;
 import com.jsp.amazonclone.entity.User;
+import com.jsp.amazonclone.exception.UserNotLoggedInException;
 import com.jsp.amazonclone.reposotory.AccessTokenRepository;
 import com.jsp.amazonclone.reposotory.CustomerRepository;
 import com.jsp.amazonclone.reposotory.RefreshTokenRepository;
@@ -44,6 +42,7 @@ import com.jsp.amazonclone.utility.ResponseStructure;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
@@ -122,6 +121,141 @@ public class AuthServiceImpl implements AuthService {
 		this.accessTokenRepository=accessTokenRepository;
 		this.refreshTokenRepository=refreshTokenRepository;
 	}
+	
+	//============================================PUBLIC METHODS==============================================
+
+	//METHOD TO REGISTER USER 
+	@Override
+	public ResponseEntity<ResponseStructure<UserResponseDTO>> register(UserRequestDTO request) {
+		if (userRepo.existsByEmail(request.getEmail()))
+			throw new RuntimeException("User does not exist by this email id");
+		String OTP = generateOTP();//"45789";
+		User user = mapToUserRequest(request);
+		userCacheStore.add(request.getEmail(), user);
+		otpCacheStore.add(request.getEmail(), OTP);
+		
+	
+			try {
+				sendotpToMail( user, OTP);
+			} catch (MessagingException e) {
+				// TODO Auto-generated catch block
+				log.error("This eamil address dosent Exist"+OTP);
+				e.printStackTrace();
+			}
+	
+		
+		return new  ResponseEntity<ResponseStructure<UserResponseDTO>>(responseStructure.setStatusCode(HttpStatus.ACCEPTED.value())
+				.setMessage("please verify your mail Id through the otp sent ")
+				.setData(mapToUserResponseDTO(user)),HttpStatus.ACCEPTED);
+	}
+	
+	//METHOD TO VERIFY OTP
+	
+		@Override
+		public ResponseEntity<String> verifyOTP(OtpModel otpModel) {
+			User user = userCacheStore.get(otpModel.getEmail());
+			String otp = otpCacheStore.get(otpModel.getEmail());
+
+			if(otp==null) throw new RuntimeException("OTP expired");
+			if(user==null)throw new RuntimeException("Registartion Session Expired");
+			if(!otp.equals(otpModel.getOtp())) throw new RuntimeException("Invalid Exception");
+			else {
+			user.setEmailVerified(true);
+			userRepo.save(user);
+			try {
+				sendWelComeMil( user);
+			} catch (MessagingException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			}
+			return new ResponseEntity<String>("registrarion Sucessfull",HttpStatus.CREATED);
+		}
+		
+		//METHOD TO LOGIN USER
+		
+		@Override
+		public ResponseEntity<ResponseStructure<AuthResponseDTO>> login(AuthRequestDTO authRequestDTO,HttpServletResponse response) {
+			
+			String userName= authRequestDTO.getEmail().split("@")[0];
+			UsernamePasswordAuthenticationToken token= new UsernamePasswordAuthenticationToken(userName,authRequestDTO.getPassword());
+			org.springframework.security.core.Authentication authentication=authenticationManager.authenticate(token);
+			if(!authentication.isAuthenticated())
+			{
+				throw new UsernameNotFoundException("failed authenticate the user");
+			}
+			else
+			{
+				//generating the cookies and returning to the client
+				
+			return	 userRepo.findByUserName(userName).map(user ->{
+					grantAccess(response, user);
+				return 	ResponseEntity.ok(authStructure.setStatusCode(HttpStatus.OK.value())
+							.setData(AuthResponseDTO.builder()
+									.userId(user.getUserId())
+									.userName(userName)
+									.role(user.getUserName())
+									.isAuthenticated(true)
+									.accessExpiration(LocalDateTime.now().plusSeconds(accessExpiryInSeconds))
+									.refreshExpiration(LocalDateTime.now().plusSeconds(refreshExpiryInSeconds))
+									.build()));
+							
+				}).get();
+				
+			}
+		}
+		
+		// METHOD TO 
+		@Override
+		public ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(String accessToken,String refreshToken,
+				HttpServletResponse response) {
+			if(accessToken==null && refreshToken==null )
+			{
+				throw new UserNotLoggedInException("user not Logged in to Application");
+			}
+			
+			else
+			{
+			 
+			String at = null;
+			String rt = null;
+// traditional way of accession and deketing cookies.			
+//			for (Cookie cookie : cookies) {
+//				if(cookie.getName().equals("at"))
+//				{
+//					at=cookie.getValue();
+//				}
+//				if(cookie.getName().equals("rt"))
+//				{
+//					rt=cookie.getValue();
+//				}
+//				
+//			}
+			accessTokenRepository.findByToken(at).ifPresent(access ->{
+				access.setBlocked(true);
+				accessTokenRepository.save(access);
+			});
+			
+			refreshTokenRepository.findByToken(rt).ifPresent(refresh ->{
+				refresh.setBlocked(true);
+				refreshTokenRepository.save(refresh);
+			});
+			
+			response.addCookie(cookieManager.invalidate(new Cookie("at","")));
+			response.addCookie(cookieManager.invalidate(new Cookie("rt","")));
+			}
+			authStructure.setStatusCode(HttpStatus.OK.value());
+			authStructure.setMessage("User LoggedOut Successfully");
+			authStructure.setData(null);
+			
+		return new	ResponseEntity<ResponseStructure<AuthResponseDTO>>(authStructure,HttpStatus.OK);
+			
+		}
+		
+	
+	
+	//============================================PRIVATE METHODS==============================================
 
 	//METHOD TO CONVERT USERREQUASTDTO OBJECT TO APPROPRIATE USERS BASED ON USERROLE 
 	
@@ -157,70 +291,6 @@ public class AuthServiceImpl implements AuthService {
 		return String.valueOf(new Random().nextInt(100000,999999));
 	}
 	
-	// METHOD TO SAVE USER
-	
-//	private User saveUser(User user) {
-//		switch (user.getUserRole()) {
-//		case CUSTOMER -> {
-//			user = customerRepo.save((Customer) user);
-//		}
-//		case SELLER -> {
-//			user = sellerRepo.save((Seller) user);
-//		}
-//		default -> throw new RuntimeException();
-//		}
-//		return user;
-//	}
-
-	//METHOD TO REGISTER USER 
-
-	@Override
-	public ResponseEntity<ResponseStructure<UserResponseDTO>> register(UserRequestDTO request) {
-		if (userRepo.existsByEmail(request.getEmail()))
-			throw new RuntimeException("User does not exist by this email id");
-		String OTP = generateOTP();//"45789";
-		User user = mapToUserRequest(request);
-		userCacheStore.add(request.getEmail(), user);
-		otpCacheStore.add(request.getEmail(), OTP);
-		
-	
-			try {
-				sendotpToMail( user, OTP);
-			} catch (MessagingException e) {
-				// TODO Auto-generated catch block
-				log.error("This eamil address dosent Exist"+OTP);
-				e.printStackTrace();
-			}
-	
-		
-		return new  ResponseEntity<ResponseStructure<UserResponseDTO>>(responseStructure.setStatusCode(HttpStatus.ACCEPTED.value())
-				.setMessage("please verify your mail Id through the otp sent ")
-				.setData(mapToUserResponseDTO(user)),HttpStatus.ACCEPTED);
-	}
-
-	//METHOD TO VERIFY OTP
-	
-	@Override
-	public ResponseEntity<String> verifyOTP(OtpModel otpModel) {
-		User user = userCacheStore.get(otpModel.getEmail());
-		String otp = otpCacheStore.get(otpModel.getEmail());
-
-		if(otp==null) throw new RuntimeException("OTP expired");
-		if(user==null)throw new RuntimeException("Registartion Session Expired");
-		if(!otp.equals(otpModel.getOtp())) throw new RuntimeException("Invalid Exception");
-		else {
-		user.setEmailVerified(true);
-		userRepo.save(user);
-		try {
-			sendWelComeMil( user);
-		} catch (MessagingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		}
-		return new ResponseEntity<String>("registrarion Sucessfull",HttpStatus.CREATED);
-	}
 	
 	// METHOD TO SEND OTP TO USER EMAILID
 	
@@ -286,36 +356,6 @@ public class AuthServiceImpl implements AuthService {
 		javaMailSender.send(mimeMessage);
 	}
 
-	@Override
-	public ResponseEntity<ResponseStructure<AuthResponseDTO>> login(AuthRequestDTO authRequestDTO,HttpServletResponse response) {
-		
-		String userName= authRequestDTO.getEmail().split("@")[0];
-		UsernamePasswordAuthenticationToken token= new UsernamePasswordAuthenticationToken(userName,authRequestDTO.getPassword());
-		org.springframework.security.core.Authentication authentication=authenticationManager.authenticate(token);
-		if(!authentication.isAuthenticated())
-		{
-			throw new UsernameNotFoundException("failed authenticate the user");
-		}
-		else
-		{
-			//generating the cookies and returning to the client
-			
-		return	 userRepo.findByUserName(userName).map(user ->{
-				grantAccess(response, user);
-			return 	ResponseEntity.ok(authStructure.setStatusCode(HttpStatus.OK.value())
-						.setData(AuthResponseDTO.builder()
-								.userId(user.getUserId())
-								.userName(userName)
-								.role(user.getUserName())
-								.isAuthenticated(true)
-								.accessExpiration(LocalDateTime.now().plusSeconds(accessExpiryInSeconds))
-								.refreshExpiration(LocalDateTime.now().plusSeconds(refreshExpiryInSeconds))
-								.build()));
-						
-			}).get();
-			
-		}
-	}
 	
 	private void grantAccess(HttpServletResponse response, User user)
 	{
@@ -325,9 +365,10 @@ public class AuthServiceImpl implements AuthService {
 		String refreshToken= jwtService.generateAccessToken(user.getUserName());
 		
 		//adding access and refresh tokens cookies to the response
+		
 		response.addCookie(cookieManager.configure(new Cookie("at", accessToken), accessExpiryInSeconds));
 		
-		response.addCookie(cookieManager.configure(new Cookie("at", refreshToken), refreshExpiryInSeconds));
+		response.addCookie(cookieManager.configure(new Cookie("rt", refreshToken), refreshExpiryInSeconds));
 		
 		//saving the access and refresh cookie in to the database
 		
@@ -344,6 +385,8 @@ public class AuthServiceImpl implements AuthService {
 				.build());
 		
 	}
+
+	
 	
 	
 	

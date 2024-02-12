@@ -9,6 +9,7 @@ import com.jsp.amazonclone.responsedto.AuthResponseDTO;
 import com.jsp.amazonclone.responsedto.UserResponseDTO;
 import com.jsp.amazonclone.utility.ResponseStructure;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public interface AuthService {
@@ -19,4 +20,9 @@ public interface AuthService {
 	ResponseEntity<String> verifyOTP(OtpModel otpModel);
 
 	ResponseEntity<ResponseStructure<AuthResponseDTO>> login(AuthRequestDTO authRequestDTO,HttpServletResponse response);
+
+	ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(HttpServletRequest request, HttpServletResponse response);
+
+	ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(String accessToken, String refreshToken,
+			HttpServletResponse response);
 }
