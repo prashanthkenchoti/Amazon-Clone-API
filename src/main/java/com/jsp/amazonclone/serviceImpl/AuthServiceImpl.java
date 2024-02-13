@@ -2,6 +2,7 @@ package com.jsp.amazonclone.serviceImpl;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +13,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,7 @@ import com.jsp.amazonclone.service.AuthService;
 import com.jsp.amazonclone.utility.CookieManager;
 import com.jsp.amazonclone.utility.MessageStructure;
 import com.jsp.amazonclone.utility.ResponseStructure;
+import com.jsp.amazonclone.utility.SimpleResponseStructure;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -253,9 +256,64 @@ public class AuthServiceImpl implements AuthService {
 			
 		}
 		
+		@Override
+		public ResponseEntity<SimpleResponseStructure> revokeAccessFromAllDevices()
+		 {
+		String username =	SecurityContextHolder.getContext().getAuthentication().getName();
+		userRepo.findByUserName(username).ifPresent(user ->{
+			blockAccessTokens(accessTokenRepository.findAllByUserAndIsBlocked(user,false));
+			blockRefreshTokens(refreshTokenRepository.findByTokenAndIsBlocked(user,false));
+				
+			});
+			
+			SimpleResponseStructure  simpleResponseStructure= new SimpleResponseStructure();
+			simpleResponseStructure.setStatusCode(HttpStatus.OK.value());
+			simpleResponseStructure.setMessage(" successfully revoked Access for all devices");
+			
+			return new ResponseEntity<SimpleResponseStructure>(simpleResponseStructure,HttpStatus.OK);
+		}
+		
+		@Override
+		public ResponseEntity<SimpleResponseStructure> revokeAccessFromOtherDevices(String accessToken,
+				String refreshToken) {
+			String username =	SecurityContextHolder.getContext().getAuthentication().getName();
+			userRepo.findByUserName(username).ifPresent(user ->{
+				if(accessToken!=null && refreshToken!=null)
+				{
+				blockAccessTokens(accessTokenRepository.findAllByUserAndIsBlockedAndTokenNot(user,false,accessToken));
+				blockRefreshTokens(refreshTokenRepository.findAllByUserAndIsBlockedAndTokenNot(user,false,refreshToken));
+				}	
+				});
+				
+			SimpleResponseStructure  simpleResponseStructure= new SimpleResponseStructure();
+				simpleResponseStructure.setStatusCode(HttpStatus.OK.value());
+				simpleResponseStructure.setMessage(" successfully revoked Access for all devices");
+				
+				return new ResponseEntity<>(simpleResponseStructure,HttpStatus.OK);
+			
+		}
+
+		
 	
 	
 	//============================================PRIVATE METHODS==============================================
+		
+		
+		private void blockAccessTokens(List<AccessToken> accessTokens)
+		{
+			accessTokens.forEach(at ->{
+				at.setBlocked(true);
+				accessTokenRepository.save(at);
+			});
+		}
+		
+		private void blockRefreshTokens(List<RefreshToken> refreshTokens)
+		{
+			refreshTokens.forEach(rt ->{
+				rt.setBlocked(true);
+				refreshTokenRepository.save(rt);
+			});
+		}
 
 	//METHOD TO CONVERT USERREQUASTDTO OBJECT TO APPROPRIATE USERS BASED ON USERROLE 
 	
@@ -359,7 +417,7 @@ public class AuthServiceImpl implements AuthService {
 	
 	private void grantAccess(HttpServletResponse response, User user)
 	{
-		//generating access and refress tokens
+		//generating access and refresh tokens
 		
 		String accessToken=jwtService.generateAccessToken(user.getUserName());
 		String refreshToken= jwtService.generateAccessToken(user.getUserName());
@@ -385,6 +443,11 @@ public class AuthServiceImpl implements AuthService {
 				.build());
 		
 	}
+
+	
+
+	
+	
 
 	
 	

@@ -2,6 +2,7 @@ package com.jsp.amazonclone.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.jsp.amazonclone.responsedto.AuthResponseDTO;
 import com.jsp.amazonclone.responsedto.UserResponseDTO;
 import com.jsp.amazonclone.service.AuthService;
 import com.jsp.amazonclone.utility.ResponseStructure;
+import com.jsp.amazonclone.utility.SimpleResponseStructure;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -44,9 +46,25 @@ public class AuthController {
 		return authService.login(authRequestDTO, response);
 	}
 	
+	 @PreAuthorize(value = "hasAuthority('SELLER') or hasAuthority('CUSTOMER')")
 	@PostMapping("/logout")
 	public ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(@CookieValue(name="at" ,required = false) String accessToken,@CookieValue(name="rt" ,required = false) String refreshToken,   HttpServletResponse response)
 	{
 		return authService.logout(accessToken,refreshToken,response);
 	}
+	
+	 @PreAuthorize(value = "hasAuthority('SELLER') or hasAuthority('CUSTOMER')")
+	@PostMapping("/revoke/all")
+	public ResponseEntity<SimpleResponseStructure> revokeAccessFromAllDevices()
+	{
+		return authService.revokeAccessFromAllDevices();
+	}
+	
+	 @PreAuthorize(value = "hasAuthority('SELLER') or hasAuthority('CUSTOMER')")
+	@PostMapping("/revoke/other")
+	public ResponseEntity<SimpleResponseStructure> revokeAccessFromOtherDevices(String accessToken,String refreshToken )
+	{
+		return authService.revokeAccessFromOtherDevices(accessToken,refreshToken);
+	}
+	
 }

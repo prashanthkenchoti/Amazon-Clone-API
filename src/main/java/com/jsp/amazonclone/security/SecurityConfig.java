@@ -11,16 +11,23 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import lombok.AllArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@AllArgsConstructor
 public class SecurityConfig {
 	
-	@Autowired
+
 	private CustomUserDetailsService customUserDetailsService;
+	
+	private JwtFilter jwtFilter;
 	
 	@Bean
 	AuthenticationProvider authenticationProvider()
@@ -41,9 +48,12 @@ public class SecurityConfig {
 	SecurityFilterChain  securityFilterChain(HttpSecurity httpSecurity) throws Exception
 	{
 		return httpSecurity.csrf(csrf ->csrf.disable())
-				//.formLogin(org.springframework.security.config.Customizer.withDefaults())
+				//.formLogin(org.springframework.security.config.Customizer.withDefaults()) formlogin we are not using 
 				.httpBasic(Customizer.withDefaults())// it is less secure
 				.authorizeHttpRequests(auth->auth.requestMatchers("/**").permitAll().anyRequest().authenticated())
+				.sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authenticationProvider(authenticationProvider())
+				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
 				.build();
 	}
 	

@@ -43,7 +43,6 @@ public class ExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 	
 
-
 	@org.springframework.web.bind.annotation.ExceptionHandler(UserNotLoggedInException.class)
 	public ResponseEntity<Object> schoolNotFound(UserNotLoggedInException ex)
 	{

@@ -8,8 +8,8 @@ import com.jsp.amazonclone.requestdto.UserRequestDTO;
 import com.jsp.amazonclone.responsedto.AuthResponseDTO;
 import com.jsp.amazonclone.responsedto.UserResponseDTO;
 import com.jsp.amazonclone.utility.ResponseStructure;
+import com.jsp.amazonclone.utility.SimpleResponseStructure;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public interface AuthService {
@@ -21,8 +21,13 @@ public interface AuthService {
 
 	ResponseEntity<ResponseStructure<AuthResponseDTO>> login(AuthRequestDTO authRequestDTO,HttpServletResponse response);
 
-	ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(HttpServletRequest request, HttpServletResponse response);
+	//ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(HttpServletRequest request, HttpServletResponse response);
 
 	ResponseEntity<ResponseStructure<AuthResponseDTO>> logout(String accessToken, String refreshToken,
 			HttpServletResponse response);
+
+	ResponseEntity<SimpleResponseStructure> revokeAccessFromAllDevices();
+
+	ResponseEntity<SimpleResponseStructure> revokeAccessFromOtherDevices(String accessToken,
+			String refreshToken);
 }
