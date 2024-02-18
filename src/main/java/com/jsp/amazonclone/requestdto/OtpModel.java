@@ -15,5 +15,7 @@ public class OtpModel {
 	
 	private String email;
 	private String otp;
+	
+	
 
 }

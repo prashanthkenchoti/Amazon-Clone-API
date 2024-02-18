@@ -43,7 +43,7 @@ public class JwtService {
 				.setIssuedAt(new Date(System.currentTimeMillis()))
 				.setExpiration(new Date(System.currentTimeMillis()+expiry))
 				.signWith(getSignature(),SignatureAlgorithm.HS512)//signing the jwt with key
-				.compact();
+				.compact();//it is a method in JwtBuilder interface , it returns the String type of object
 				
 	}
 	

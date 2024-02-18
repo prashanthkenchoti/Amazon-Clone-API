@@ -30,4 +30,6 @@ public interface AuthService {
 
 	ResponseEntity<SimpleResponseStructure> revokeAccessFromOtherDevices(String accessToken,
 			String refreshToken);
+
+	ResponseEntity<SimpleResponseStructure> refreshLogin(String accessToken, String refreshToken, HttpServletResponse httpresponse);
 }

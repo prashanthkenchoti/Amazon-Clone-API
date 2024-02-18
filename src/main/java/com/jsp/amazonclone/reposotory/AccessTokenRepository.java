@@ -11,7 +11,9 @@ import com.jsp.amazonclone.entity.User;
 
 public interface AccessTokenRepository extends JpaRepository<AccessToken, Long> {
 
-	Optional<AccessToken> findByToken(String at);
+	AccessToken findByToken(String at);
+	
+
 
 	List<AccessToken> findByExpirationBefore(LocalDateTime now);
 

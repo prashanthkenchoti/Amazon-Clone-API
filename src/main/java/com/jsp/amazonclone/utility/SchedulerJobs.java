@@ -21,8 +21,9 @@ public class SchedulerJobs {
 
 	private RefreshTokenRepository refreshTokenRepo;
 	
-	// Scheduled task to run every 6 hours
-		@Scheduled(cron = "0 */6 * * * *") // Run every 6 hours
+	// So, the expression * * */6 * * * means "run the task every six hours,
+	//regardless of the minute, second, day of the month, month, or day of the week."		
+	@Scheduled(cron = "* * */6 * * *") 
 		public void cleanUpAllTheExpiredToken()
 		{
 			LocalDateTime now = LocalDateTime.now();

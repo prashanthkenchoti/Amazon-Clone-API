@@ -44,7 +44,7 @@ public class ExceptionHandler extends ResponseEntityExceptionHandler {
 	
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(UserNotLoggedInException.class)
-	public ResponseEntity<Object> schoolNotFound(UserNotLoggedInException ex)
+	public ResponseEntity<Object> userNotLoggedIn(UserNotLoggedInException ex)
 	{
 
 		return responseStructure(HttpStatus.NOT_FOUND, ex.getMessage(), "User not lgged in to application");

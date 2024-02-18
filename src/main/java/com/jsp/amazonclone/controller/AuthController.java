@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api/v1")
+@CrossOrigin(allowCredentials = "true",origins = "http://localhost:5173/")// enables the method to receive cross origin requests
 public class AuthController {
 	
 	@Autowired
@@ -34,9 +36,10 @@ public class AuthController {
 		return authService.register(userRequestDTO);
 	}
 
-	@PostMapping("/varify-otp")
+	@PostMapping("/verify-otp")
 	public ResponseEntity<String> verifyOTP( @RequestBody OtpModel otp)
 	{
+		System.out.println(otp.getOtp());
 		return authService.verifyOTP(otp);
 	}
 	
@@ -54,17 +57,24 @@ public class AuthController {
 	}
 	
 	 @PreAuthorize(value = "hasAuthority('SELLER') or hasAuthority('CUSTOMER')")
-	@PostMapping("/revoke/all")
+	@PostMapping("/revokeall")
 	public ResponseEntity<SimpleResponseStructure> revokeAccessFromAllDevices()
 	{
 		return authService.revokeAccessFromAllDevices();
 	}
 	
 	 @PreAuthorize(value = "hasAuthority('SELLER') or hasAuthority('CUSTOMER')")
-	@PostMapping("/revoke/other")
+	@PostMapping("/revokeother")
 	public ResponseEntity<SimpleResponseStructure> revokeAccessFromOtherDevices(String accessToken,String refreshToken )
 	{
 		return authService.revokeAccessFromOtherDevices(accessToken,refreshToken);
 	}
+	 @PostMapping("/refreshlogin")
+	 public ResponseEntity<SimpleResponseStructure> refreshLogin(@CookieValue String accessToken,@CookieValue String refreshToken, HttpServletResponse httpresponse )
+		{
+			return authService.refreshLogin(accessToken,refreshToken,httpresponse);
+		}
+	 
+	 
 	
 }
