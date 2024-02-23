@@ -49,4 +49,32 @@ public class ExceptionHandler extends ResponseEntityExceptionHandler {
 
 		return responseStructure(HttpStatus.NOT_FOUND, ex.getMessage(), "User not lgged in to application");
 	}
+	
+	@org.springframework.web.bind.annotation.ExceptionHandler(StoreNotFoundException.class)
+	public ResponseEntity<Object> storeNotFound(StoreNotFoundException storeNotFoundException)
+	{
+
+		return responseStructure(HttpStatus.NOT_FOUND, storeNotFoundException.getMessage(), "store not found with given Id");
+	}
+	
+	@org.springframework.web.bind.annotation.ExceptionHandler(SellerNotFoundException.class)
+	public ResponseEntity<Object> sellerNotFound(SellerNotFoundException sellerNotFoundException)
+	{
+
+		return responseStructure(HttpStatus.NOT_FOUND, sellerNotFoundException.getMessage(), "seller not found with given Id");
+	}
+	
+	@org.springframework.web.bind.annotation.ExceptionHandler(AddressNotFoundException.class)
+	public ResponseEntity<Object> addressNotFound(AddressNotFoundException addressNotFoundException)
+	{
+
+		return responseStructure(HttpStatus.NOT_FOUND, addressNotFoundException.getMessage(), "Address not found with given Id");
+	}
+	
+	@org.springframework.web.bind.annotation.ExceptionHandler(ContactNotFoundException.class)
+	public ResponseEntity<Object> contactNotFound(ContactNotFoundException contactNotFoundException)
+	{
+
+		return responseStructure(HttpStatus.NOT_FOUND, contactNotFoundException.getMessage(), "Contact not found with given Id");
+	}
 }

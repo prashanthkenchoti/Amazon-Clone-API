@@ -306,12 +306,16 @@ public class AuthServiceImpl implements AuthService {
 		String username= SecurityContextHolder.getContext().getAuthentication().getName();
 		User user= userRepo.findByUserName(username).get();
 		if(accessToken==null)
-//		{
-//			AccessToken at= accessTokenRepository.findByToken(accessToken);
-//					at.setBlocked(true);
-//			accessTokenRepository.save(at);
-//			grantAccess(httpresponse, user);
-//		}
+		{
+			
+			grantAccess(httpresponse, user);
+		}
+		else
+		{
+			AccessToken at= accessTokenRepository.findByToken(accessToken);
+			at.setBlocked(true);
+			accessTokenRepository.save(at);
+		}
 		if(refreshToken!=null)
 		{
 			RefreshToken rt= refreshTokenRepository.findByToken(refreshToken);
@@ -319,12 +323,15 @@ public class AuthServiceImpl implements AuthService {
 			refreshTokenRepository.save(rt);
 			grantAccess(httpresponse, user);
 		}
+		else
+		{
+			throw new UserNotLoggedInException("user need to logged in to the application,kindly login to the application");
+		}
 
 		SimpleResponseStructure simpleResponseStructure = new SimpleResponseStructure();
 		simpleResponseStructure.setStatusCode(HttpStatus.OK.value());
 		simpleResponseStructure.setMessage("refresh token generated successfully..");
 		return new  ResponseEntity<SimpleResponseStructure>(simpleResponseStructure,HttpStatus.OK);
-
 
 	}
 
